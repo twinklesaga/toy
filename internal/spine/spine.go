@@ -7,6 +7,7 @@ import (
 	_ "image/png"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -51,26 +52,50 @@ type Skin struct {
 	Attachments map[string]map[string]Attachment `json:"attachments"`
 }
 
-type SpineData struct {
+type Spine struct {
+	Skeleton Skeleton
+	Bones    []Bone
+	Slots    []Slot
+	Skins    []Skin
+
+	Atlas *Atlas
+	Image *ebiten.Image
+}
+
+type spineData struct {
 	Skeleton Skeleton `json:"skeleton"`
 	Bones    []Bone   `json:"bones"`
 	Slots    []Slot   `json:"slots"`
 	Skins    []Skin   `json:"skins"`
-
-	Img *ebiten.Image
 }
 
-func LoadSpineData(dataPath string) (*SpineData, error) {
+func LoadSpineData(dataPath string) (*Spine, error) {
 	data, err := os.ReadFile(dataPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var spineData SpineData
+	var spineData spineData
 	if err := json.Unmarshal(data, &spineData); err != nil {
 		return nil, err
 	}
-	imgPath := path.Join(path.Dir(dataPath), "hero-ess.png")
+
+	atlasPath := path.Join(path.Dir(dataPath), strings.Replace(path.Base(dataPath), ".json", ".atlas", -1))
+
+	atlas, err := parseAtlas(atlasPath)
+	if err != nil {
+		return nil, err
+	}
+
+	spine := &Spine{
+		Skeleton: spineData.Skeleton,
+		Bones:    spineData.Bones,
+		Slots:    spineData.Slots,
+		Skins:    spineData.Skins,
+		Atlas:    &atlas,
+	}
+
+	imgPath := path.Join(path.Dir(dataPath), atlas.ImageName)
 	imgData, err := os.ReadFile(imgPath)
 	if err != nil {
 		return nil, err
@@ -81,7 +106,7 @@ func LoadSpineData(dataPath string) (*SpineData, error) {
 		return nil, err
 	}
 
-	spineData.Img = ebiten.NewImageFromImage(img)
+	spine.Image = ebiten.NewImageFromImage(img)
 
-	return &spineData, nil
+	return spine, nil
 }

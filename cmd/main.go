@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	spineData, err := spine.LoadSpineData("../data/spine/hero-ess.json")
+	spineData, err := spine.LoadSpineData("./data/spine/hero-ess.json")
 	if err != nil {
 		log.Fatal(err)
 	}

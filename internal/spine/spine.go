@@ -3,6 +3,7 @@ package spine
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"image"
 	_ "image/png"
 	"os"
@@ -58,8 +59,36 @@ type Spine struct {
 	Slots    []Slot
 	Skins    []Skin
 
-	Atlas *Atlas
-	Image *ebiten.Image
+	Atlas   *Atlas
+	Image   *ebiten.Image
+	BoneMap map[string]*Bone
+}
+
+func (s *Spine) FindBone(name string) (*Bone, error) {
+	for _, b := range s.Bones {
+		if b.Name == name {
+			return &b, nil
+		}
+	}
+	return nil, errors.New("no bone found")
+}
+
+func (s *Spine) FindBonePos(name string) (*Bone, float64, float64, error) {
+	var fx = 0.0
+	var fy = 0.0
+
+	cur := name
+	for len(cur) > 0 {
+		b, ok := s.BoneMap[cur]
+		if !ok {
+			return nil, 0.0, 0.0, errors.New("no bone found")
+		}
+		fx += b.X
+		fy += b.Y
+		cur = b.Parent
+	}
+	b, _ := s.BoneMap[name]
+	return b, fx, -fy, nil
 }
 
 type spineData struct {
@@ -107,6 +136,11 @@ func LoadSpineData(dataPath string) (*Spine, error) {
 	}
 
 	spine.Image = ebiten.NewImageFromImage(img)
+
+	spine.BoneMap = make(map[string]*Bone)
+	for _, b := range spine.Bones {
+		spine.BoneMap[b.Name] = &b
+	}
 
 	return spine, nil
 }

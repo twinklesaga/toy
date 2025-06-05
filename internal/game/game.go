@@ -1,8 +1,6 @@
 package game
 
 import (
-	"image"
-	"math"
 	"toy/internal/spine"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -25,38 +23,11 @@ func (g *Game) Update() error {
 	return nil
 }
 
-func toImageRect(sprite spine.Sprite) image.Rectangle {
-	if sprite.Rotated {
-		return image.Rect(sprite.Bounds.X, sprite.Bounds.Y, sprite.Bounds.X+sprite.Bounds.Height, sprite.Bounds.Y+sprite.Bounds.Width)
-	}
-
-	return image.Rect(sprite.Bounds.X, sprite.Bounds.Y, sprite.Bounds.X+sprite.Bounds.Width, sprite.Bounds.Y+sprite.Bounds.Height)
-}
 func (g *Game) Draw(screen *ebiten.Image) {
-
-	//	for _, slot := range g.spine.Slots {
-	slot := g.spine.Slots[3]
-	sprite, err := g.spine.Atlas.FindSprite(slot.Attachment)
-	if err != nil {
+	if g.spine == nil {
 		return
-		//	continue
 	}
-
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Reset()
-	//op.GeoM.Translate(float64(-(sprite.Offsets.Width >> 1)), float64(-(sprite.Offsets.Height >> 1)))
-	if sprite.Rotated {
-		op.GeoM.Rotate(2 * math.Pi * float64(90) / 360)
-	}
-	op.GeoM.Translate(float64(g.screenWidth)/2, float64(g.screenHeight)/2)
-
-	//"x": 7.8, "y": 71.88, "rotation": 0.29, "width": 172, "height": 173
-	screen.DrawImage(g.spine.Image.SubImage(
-		toImageRect(sprite)).(*ebiten.Image), op)
-
-	//	break
-	//}
-
+	g.spine.Draw(screen, float64(g.screenWidth)/2, float64(g.screenHeight)/2)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

@@ -63,6 +63,11 @@ type Spine struct {
 	Atlas   *Atlas
 	Image   *ebiten.Image
 	BoneMap map[string]*Bone
+
+	BoneState        map[string]BoneTransform
+	Animations       map[string]Animation
+	CurrentAnimation string
+	time             float64
 }
 
 func (s *Spine) findBoneTransform(name string) (*Bone, float64, float64, float64, error) {
@@ -74,9 +79,10 @@ func (s *Spine) findBoneTransform(name string) (*Bone, float64, float64, float64
 		if !ok {
 			return nil, 0, 0, 0, errors.New("no bone found")
 		}
-		fx += b.X
-		fy += b.Y
-		fr += b.Rotation
+		state := s.BoneState[cur]
+		fx += b.X + state.X
+		fy += b.Y + state.Y
+		fr += b.Rotation + state.Rotation
 		cur = b.Parent
 	}
 
@@ -158,8 +164,9 @@ func (s *Spine) FindBonePos(name string) (*Bone, float64, float64, error) {
 		if !ok {
 			return nil, 0.0, 0.0, errors.New("no bone found")
 		}
-		fx += b.X
-		fy += b.Y
+		st := s.BoneState[cur]
+		fx += b.X + st.X
+		fy += b.Y + st.Y
 		cur = b.Parent
 	}
 	b, _ := s.BoneMap[name]
@@ -167,10 +174,11 @@ func (s *Spine) FindBonePos(name string) (*Bone, float64, float64, error) {
 }
 
 type spineData struct {
-	Skeleton Skeleton `json:"skeleton"`
-	Bones    []Bone   `json:"bones"`
-	Slots    []Slot   `json:"slots"`
-	Skins    []Skin   `json:"skins"`
+	Skeleton   Skeleton             `json:"skeleton"`
+	Bones      []Bone               `json:"bones"`
+	Slots      []Slot               `json:"slots"`
+	Skins      []Skin               `json:"skins"`
+	Animations map[string]Animation `json:"animations"`
 }
 
 func LoadSpineData(dataPath string) (*Spine, error) {
@@ -213,9 +221,47 @@ func LoadSpineData(dataPath string) (*Spine, error) {
 	spine.Image = ebiten.NewImageFromImage(img)
 
 	spine.BoneMap = make(map[string]*Bone)
-	for _, b := range spine.Bones {
-		spine.BoneMap[b.Name] = &b
+	spine.BoneState = make(map[string]BoneTransform)
+	for i := range spine.Bones {
+		b := &spine.Bones[i]
+		spine.BoneMap[b.Name] = b
+		spine.BoneState[b.Name] = BoneTransform{}
 	}
 
+	spine.Animations = spineData.Animations
+
 	return spine, nil
+}
+
+// SetAnimation sets the current animation by name.
+func (s *Spine) SetAnimation(name string) {
+	if _, ok := s.Animations[name]; ok {
+		s.CurrentAnimation = name
+		s.time = 0
+	}
+}
+
+// Update advances the current animation by dt seconds.
+func (s *Spine) Update(dt float64) {
+	if s.CurrentAnimation == "" {
+		return
+	}
+	anim, ok := s.Animations[s.CurrentAnimation]
+	if !ok {
+		return
+	}
+	s.time += dt
+	for name, ba := range anim.Bones {
+		state := s.BoneState[name]
+		if len(ba.Translate) > 0 {
+			x, y := sampleVec2(ba.Translate, s.time)
+			state.X = x
+			state.Y = y
+		}
+		if len(ba.Rotate) > 0 {
+			r := sampleValue(ba.Rotate, s.time)
+			state.Rotation = r
+		}
+		s.BoneState[name] = state
+	}
 }

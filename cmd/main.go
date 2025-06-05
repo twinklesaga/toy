@@ -14,6 +14,8 @@ func main() {
 	}
 	fmt.Println(spineData.Skeleton.Hash)
 
+	spineData.SetAnimation("idle")
+
 	g, err := game.NewGame(game.WithScreenSize(800, 600),
 		game.WithTitle("toy"),
 		game.WithSpine(spineData),

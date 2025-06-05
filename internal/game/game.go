@@ -20,6 +20,9 @@ func (g *Game) Run() error {
 }
 
 func (g *Game) Update() error {
+	if g.spine != nil {
+		g.spine.Update(1.0 / 60.0)
+	}
 	return nil
 }
 

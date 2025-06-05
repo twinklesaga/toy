@@ -121,7 +121,11 @@ func (s *Spine) Draw(screen *ebiten.Image, x, y float64) {
 		}
 
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(-float64(sprite.Offsets.Width)/2, -float64(sprite.Offsets.Height)/2)
+		// Adjust translation to account for atlas offsets so that each
+		// sprite is positioned correctly relative to its bone.
+		cx := float64(sprite.Offsets.Width)/2 - float64(sprite.Offsets.X)
+		cy := float64(sprite.Offsets.Height)/2 - float64(sprite.Offsets.Y)
+		op.GeoM.Translate(-cx, -cy)
 		if sprite.Rotated {
 			op.GeoM.Rotate(math.Pi / 2)
 		}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"image"
 	_ "image/png"
+	"math"
 	"os"
 	"path"
 	"strings"
@@ -62,6 +63,80 @@ type Spine struct {
 	Atlas   *Atlas
 	Image   *ebiten.Image
 	BoneMap map[string]*Bone
+}
+
+func (s *Spine) findBoneTransform(name string) (*Bone, float64, float64, float64, error) {
+	var fx, fy, fr float64
+
+	cur := name
+	for len(cur) > 0 {
+		b, ok := s.BoneMap[cur]
+		if !ok {
+			return nil, 0, 0, 0, errors.New("no bone found")
+		}
+		fx += b.X
+		fy += b.Y
+		fr += b.Rotation
+		cur = b.Parent
+	}
+
+	b := s.BoneMap[name]
+	return b, fx, -fy, fr, nil
+}
+
+func (s *Spine) getAttachment(slotName, attachmentName string) (Attachment, bool) {
+	if len(s.Skins) == 0 {
+		return Attachment{}, false
+	}
+	skin := s.Skins[0]
+	if slotMap, ok := skin.Attachments[slotName]; ok {
+		if att, ok := slotMap[attachmentName]; ok {
+			return att, true
+		}
+	}
+	return Attachment{}, false
+}
+
+func (s *Spine) Draw(screen *ebiten.Image, x, y float64) {
+	for _, slot := range s.Slots {
+		bone, bx, by, br, err := s.findBoneTransform(slot.Bone)
+		if err != nil || bone == nil {
+			continue
+		}
+
+		att, ok := s.getAttachment(slot.Name, slot.Attachment)
+		if !ok {
+			continue
+		}
+
+		sprite, err := s.Atlas.FindSprite(slot.Attachment)
+		if err != nil {
+			continue
+		}
+
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(-float64(sprite.Offsets.Width)/2, -float64(sprite.Offsets.Height)/2)
+		if sprite.Rotated {
+			op.GeoM.Rotate(math.Pi / 2)
+		}
+		op.GeoM.Rotate((br + att.Rotation) * math.Pi / 180)
+		op.GeoM.Translate(x+bx+att.X, y+by-att.Y)
+
+		sub := s.Image.SubImage(toImageRect(sprite)).(*ebiten.Image)
+		screen.DrawImage(sub, op)
+	}
+}
+
+func toImageRect(sprite Sprite) image.Rectangle {
+	if sprite.Rotated {
+		return image.Rect(sprite.Bounds.X, sprite.Bounds.Y,
+			sprite.Bounds.X+sprite.Bounds.Height,
+			sprite.Bounds.Y+sprite.Bounds.Width)
+	}
+
+	return image.Rect(sprite.Bounds.X, sprite.Bounds.Y,
+		sprite.Bounds.X+sprite.Bounds.Width,
+		sprite.Bounds.Y+sprite.Bounds.Height)
 }
 
 func (s *Spine) FindBone(name string) (*Bone, error) {

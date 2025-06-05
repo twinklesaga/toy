@@ -65,23 +65,44 @@ type Spine struct {
 	BoneMap map[string]*Bone
 }
 
-func (s *Spine) findBoneTransform(name string) (*Bone, float64, float64, float64, error) {
-	var fx, fy, fr float64
+type transform struct {
+	X, Y, Rotation float64
+}
 
-	cur := name
-	for len(cur) > 0 {
-		b, ok := s.BoneMap[cur]
-		if !ok {
-			return nil, 0, 0, 0, errors.New("no bone found")
+// worldTransforms calculates world position and rotation for every bone.
+func (s *Spine) worldTransforms() map[string]transform {
+	cache := map[string]transform{}
+
+	var calc func(string) transform
+	calc = func(name string) transform {
+		if t, ok := cache[name]; ok {
+			return t
 		}
-		fx += b.X
-		fy += b.Y
-		fr += b.Rotation
-		cur = b.Parent
+
+		b, ok := s.BoneMap[name]
+		if !ok {
+			return transform{}
+		}
+		if b.Parent == "" {
+			t := transform{X: b.X, Y: b.Y, Rotation: b.Rotation}
+			cache[name] = t
+			return t
+		}
+
+		p := calc(b.Parent)
+		r := p.Rotation * math.Pi / 180
+		cos, sin := math.Cos(r), math.Sin(r)
+		x := p.X + b.X*cos + b.Y*sin
+		y := p.Y - b.X*sin + b.Y*cos
+		t := transform{X: x, Y: y, Rotation: p.Rotation + b.Rotation}
+		cache[name] = t
+		return t
 	}
 
-	b := s.BoneMap[name]
-	return b, fx, -fy, fr, nil
+	for name := range s.BoneMap {
+		calc(name)
+	}
+	return cache
 }
 
 func (s *Spine) getAttachment(slotName, attachmentName string) (Attachment, bool) {
@@ -98,9 +119,11 @@ func (s *Spine) getAttachment(slotName, attachmentName string) (Attachment, bool
 }
 
 func (s *Spine) Draw(screen *ebiten.Image, x, y float64) {
+	transforms := s.worldTransforms()
+
 	for _, slot := range s.Slots {
-		bone, bx, by, br, err := s.findBoneTransform(slot.Bone)
-		if err != nil || bone == nil {
+		t, ok := transforms[slot.Bone]
+		if !ok {
 			continue
 		}
 
@@ -119,8 +142,16 @@ func (s *Spine) Draw(screen *ebiten.Image, x, y float64) {
 		if sprite.Rotated {
 			op.GeoM.Rotate(math.Pi / 2)
 		}
-		op.GeoM.Rotate((br + att.Rotation) * math.Pi / 180)
-		op.GeoM.Translate(x+bx+att.X, y+by-att.Y)
+
+		rotRad := -(t.Rotation + att.Rotation) * math.Pi / 180
+		op.GeoM.Rotate(rotRad)
+
+		r := t.Rotation * math.Pi / 180
+		cos, sin := math.Cos(r), math.Sin(r)
+		ax := att.X*cos + att.Y*sin
+		ay := -att.X*sin + att.Y*cos
+
+		op.GeoM.Translate(x+t.X+ax, y-(t.Y+ay))
 
 		sub := s.Image.SubImage(toImageRect(sprite)).(*ebiten.Image)
 		screen.DrawImage(sub, op)
